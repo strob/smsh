@@ -1,0 +1,7 @@
+SMS-based generative music.
+
+We implement a NodeJS-based server with three modes:
+1. /gate - SMS gateway
+2. /poll - returns map {phone#: msg}
+3. /change - long-polling API returning map whenever there is a change
+
