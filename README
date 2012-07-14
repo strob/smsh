@@ -5,3 +5,5 @@ We implement a NodeJS-based server with three modes:
 2. /poll - returns map {phone#: msg}
 3. /change - long-polling API returning map whenever there is a change
 
+Additionally, a (trivial) synthesizer that subscribes to and sonifies
+changes is implemented, audio.numm.py.
