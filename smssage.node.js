@@ -8,6 +8,10 @@ var app = require('http').createServer(handler)
   , messages = new sms.UpdatingDictionary()
   , handlers = new sms.Handlers();
 
+['setup', 'dispatch', 'sine'].forEach(function(name) {
+    handlers.set(name, fs.readFileSync(__dirname + '/default.' + name + '.js', 'utf8'));
+});
+console.log(handlers.map);
 app.listen(5858);
 
 function relayMessageToClients (from, msg) {

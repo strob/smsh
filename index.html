@@ -216,6 +216,7 @@ Editor.prototype.get = function() {
 
 var messages = new SMS.UpdatingDictionary();
 var handlers = new SMS.Handlers();
+var context = {handlers: handlers, messagemap: messages.map};
 
 var tabs = new Tabs();
 var messagelog = new MessageLog();
@@ -249,28 +250,35 @@ tabs.bind("deselected", function(k) {
     }
 });
 
+messages.bind("change", function(kv) {
+    messagelog.add(kv[0], kv[1], handlers.getResponse(
+        context, {
+            from:kv[0], 
+            message:kv[1]
+        }));
+});
+
 testmsg.bind("text", function(kv) {
     messages.set(kv[0], kv[1]);
-    messagelog.add(kv[0], kv[1], handlers.getResponse(kv[0], kv[1]));
 });
 
 socket.on('messages', function(data) {
     console.log('onmessages');
     for(k in data) {
         messages.set(k, data[k]);
-        messagelog.add(k, data[k], handlers.getResponse(k, data[k]));
     }
 });
 socket.on('message', function(data) {
     console.log('onmessage', data);
     messages.set(data[0], data[1]);
-    messagelog.add(k, data[k], handlers.getResponse(k, data[k]));
 });
 socket.on('codes', function(data) {
     console.log('codereceived', data);
     for(k in data) {
         handlers.set(k, data[k]);
     }
+
+    handlers.setup(context);
 });
 socket.on('code', function(data) {
     console.log('oncode', data);
