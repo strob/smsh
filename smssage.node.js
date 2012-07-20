@@ -50,13 +50,7 @@ function handler (req, res) {
             relayMessageToClients(data.from, data.message);
 
             res.end(JSON.stringify({payload: {
-                success: true,
-                secret: data.secret,
-                task: "send",
-                messages: [
-                    {to: data.from,
-                     message: handlers.getResponse(data.from, data.message)}
-                ]
+                success: true
             }}));
         });
 
