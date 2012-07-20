@@ -80,15 +80,13 @@ body {
 var MessageLog = function() {
     SMS.Triggerable.call(this);
     this.$el = document.createElement('div');
+    this.acc = "";
 };
 MessageLog.prototype = new SMS.Triggerable();
-MessageLog.prototype.render = function(messages, handlers) {
-    var acc = "";
-    for(var k in messages.map) {
-        acc += k + "<br>";
-        acc += messages.map[k] + "<span class='response'>" + handlers.getResponse(k, messages.map[k]) + "</span><p>";
-    }
-    this.$el.innerHTML = acc;
+MessageLog.prototype.add = function(from, msg, rsp) {
+    this.acc += from + "<br>";
+    this.acc += msg + "<span class='response'>" + rsp + "</span><p>";
+    this.$el.innerHTML = this.acc;
 };
 
 var TestMessage = function() {
@@ -245,7 +243,6 @@ tabs.bind("deselected", function(k) {
     handlers.set(tabs.selected, newcode);
     if(k !== "untitled") {
         if(oldcode !== newcode) {
-            messagelog.render(messages, handlers);
             console.log('saving code', k, editor.get());
             socket.emit("code", [k, editor.get()]);
         }
@@ -254,28 +251,26 @@ tabs.bind("deselected", function(k) {
 
 testmsg.bind("text", function(kv) {
     messages.set(kv[0], kv[1]);
+    messagelog.add(kv[0], kv[1], handlers.getResponse(kv[0], kv[1]));
 });
-
-messages.bind("change", function(x) { messagelog.render(messages, handlers); });
-//messages.bind("update", function(x) { editors.update(x[0], x[1]); });
 
 socket.on('messages', function(data) {
     console.log('onmessages');
     for(k in data) {
         messages.set(k, data[k]);
+        messagelog.add(k, data[k], handlers.getResponse(k, data[k]));
     }
-    messagelog.render(messages, handlers);
 });
 socket.on('message', function(data) {
     console.log('onmessage', data);
     messages.set(data[0], data[1]);
+    messagelog.add(k, data[k], handlers.getResponse(k, data[k]));
 });
 socket.on('codes', function(data) {
     console.log('codereceived', data);
     for(k in data) {
         handlers.set(k, data[k]);
     }
-    messagelog.render(messages, handlers);
 });
 socket.on('code', function(data) {
     console.log('oncode', data);

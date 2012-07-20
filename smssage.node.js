@@ -84,8 +84,8 @@ function handler (req, res) {
 io.sockets.on('connection', function(socket) {
     SOCKETS.push(socket);
 
-    socket.emit('messages', messages.map);
     socket.emit('codes', handlers.map);
+    socket.emit('messages', messages.map);
 
     socket.on('disconnect', function() {
         for(var i=0; i<SOCKETS.length; i++) {
