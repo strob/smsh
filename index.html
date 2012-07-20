@@ -1,0 +1,320 @@
+<html>
+  <head>
+    <title>smssage</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/lib/codemirror.js"></script>
+    <link rel="stylesheet" href="/lib/codemirror.css" />
+    <script src="/lib/javascript.js"></script>
+
+    <script src="/lib/smssage.js"></script>
+
+    <style>
+body {
+  background-color: black;
+  color: #00ff00;
+  font-family: mono;
+  margin: 0;
+}
+#messages {
+  height: 200px;
+  overflow: auto;
+}
+#code {
+  background-color: white;
+  clear: both;
+}
+.tab {
+  float: left;
+  padding: 10px;
+  height: 20px;
+  background-color: yellow;
+  color: black;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-right: 1px solid black;
+}
+.tab.invalid {
+  background-color: #ff0000;
+}
+.tab.new {
+  background-color: #00ff00;
+}
+.tab:hover {
+  background-color: white;
+}
+.tab.selected {
+  background-color: magenta;
+}
+.tab input {
+  display: none;
+}
+.tab div {
+  display: block;
+}
+.tab.selected input {
+  display: block;
+}
+.tab.selected div {
+  display: none;
+}
+.response {
+  color: #ff0000;
+  margin-left: 20px;
+}
+.testmessage {
+  width: 200px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  background-color: orange;
+  padding: 10px;
+}
+    </style>
+  </head>
+  <body>
+<div id="messages">
+</div>
+<div id="codeeditor">
+  <div id="code">
+  </div>
+</div>
+    <script>
+
+var MessageLog = function() {
+    SMS.Triggerable.call(this);
+    this.$el = document.createElement('div');
+};
+MessageLog.prototype = new SMS.Triggerable();
+MessageLog.prototype.render = function(messages, handlers) {
+    var acc = "";
+    for(var k in messages.map) {
+        acc += k + "<br>";
+        acc += messages.map[k] + "<span class='response'>" + handlers.getResponse(k, messages.map[k]) + "</span><p>";
+    }
+    this.$el.innerHTML = acc;
+};
+
+var TestMessage = function() {
+    SMS.Triggerable.call(this);
+    this.$el = document.createElement('div');
+    this.$el.classList.add('testmessage');
+
+    var $num = document.createElement('input');
+    var $txt = document.createElement('textarea');
+    var $sub = document.createElement('input');
+    $sub.setAttribute('type', 'submit');
+    $sub.setAttribute('value', 'simulate message');
+
+    this.$el.appendChild($num);
+    this.$el.appendChild($txt);
+    this.$el.appendChild($sub);
+
+    (function(that) {
+        $sub.onclick = function() {
+            that.trigger('text', [$num.value, $txt.value]);
+        }
+    })(this);
+};
+TestMessage.prototype = new SMS.Triggerable;
+
+var Tabs = function() {
+    SMS.Triggerable.call(this);
+    this.$el = document.createElement('div');
+    this.$el.classList.add("tabs");
+
+    this.$new = document.createElement('div');
+    this.$new.classList.add("tab");
+    this.$new.classList.add("new");
+    this.$new.innerHTML = "+";
+
+    (function(that){
+        that.$new.onclick = function() {
+            that.trigger("new");
+            that.select('untitled');
+        }
+    })(this)
+
+    this.$el.appendChild(this.$new);
+
+    this.selected = null;
+
+    this.tabs = {};
+};
+Tabs.prototype = new SMS.Triggerable;
+Tabs.prototype.add = function(k) {
+    var key = k;
+
+    var $div = document.createElement('div');
+    $div.classList.add('tab');
+
+    var $ed = document.createElement('input');
+    var $txt = document.createElement('div');
+
+    $txt.innerHTML = key;
+    $ed.setAttribute('value', key);
+
+    $div.appendChild($ed);
+    $div.appendChild($txt);
+
+    (function(that) {
+        $div.onclick = function() {
+            that.select(key);
+        };
+
+        $ed.onchange = function() {
+            var newkey = $ed.value;
+            that.trigger("rename", [key, newkey]);
+            key = newkey;
+        };
+    })(this)
+
+    this.$el.insertBefore($div, this.$new)
+    this.tabs[k] = $div;
+};
+Tabs.prototype.rename = function(k1,k2) {
+    if(!this.tabs[k1]) {
+        // eg. renaming an untitled file
+        this.add(k2);
+    }
+    else {
+        this.tabs[k2] = this.tabs[k1];
+        this.tabs[k1] = undefined;
+        delete this.tabs[k1];
+        var $div = this.tabs[k2];
+        $div.children[1].innerHTML = k2;
+
+        if(this.selected == k1)
+            this.selected = k2;
+    }
+};
+Tabs.prototype.select = function(k) {
+    if(this.selected == k)
+        return
+    if(this.selected) {
+        this.tabs[this.selected].classList.remove('selected');
+        this.trigger("deselected", this.selected);
+    }
+    this.selected = k;
+    this.tabs[k].classList.add('selected');
+    this.trigger("selected", k);
+};
+Tabs.prototype.setValidity = function(k,valid) {
+    if(!valid) {
+        this.tabs[k].classList.add('invalid');
+    }
+    else {
+        this.tabs[k].classList.remove('invalid');
+    }
+};
+var Editor = function() {
+    SMS.Triggerable.call(this);
+    this.$el = document.createElement('div');
+    (function(that) {
+        that.editor = CodeMirror(that.$el, {
+            mode: "javascript",
+            tabMode: "indent",
+            onChange: function() {
+                that.trigger("change", that.editor.getValue());
+            }
+        });
+    })(this)
+}
+Editor.prototype = new SMS.Triggerable;
+Editor.prototype.set = function(v) {
+    this.editor.setValue(v);
+}
+Editor.prototype.get = function() {
+    return this.editor.getValue();
+}
+
+var messages = new SMS.UpdatingDictionary();
+var handlers = new SMS.Handlers();
+
+var tabs = new Tabs();
+var messagelog = new MessageLog();
+var editor = new Editor();
+var testmsg = new TestMessage();
+
+var socket = io.connect('http://localhost:5858')
+  , MESSAGES = {}
+  , CODE = {};
+
+handlers.bind("add", function(x) { tabs.add(x[0]); });
+handlers.bind("rename", function(x) { tabs.rename(x[0], x[1]); });
+handlers.bind("validity", function(kv) { tabs.setValidity(kv[0], kv[1]); })
+
+tabs.bind("rename", function(x) { 
+    if(x[0] != 'untitled')
+        socket.emit("rename", x);
+    handlers.rename(x[0], x[1]); 
+});
+
+tabs.bind("new", function() { handlers.set("untitled", "function(from, message){\n  return 'unimplemented';\n}") });
+tabs.bind("selected", function(k) { editor.set(handlers.map[k]); });
+tabs.bind("deselected", function(k) {
+    var oldcode = handlers.map[k];
+    var newcode = editor.get();
+    handlers.set(tabs.selected, newcode);
+    if(k !== "untitled") {
+        if(oldcode !== newcode && handlers.validate(k)) {
+            messagelog.render(messages, handlers);
+            console.log('saving code', k, editor.get());
+            socket.emit("code", [k, editor.get()]);
+        }
+    }
+});
+
+testmsg.bind("text", function(kv) {
+    messages.set(kv[0], kv[1]);
+});
+
+messages.bind("change", function(x) { messagelog.render(messages, handlers); });
+//messages.bind("update", function(x) { editors.update(x[0], x[1]); });
+
+socket.on('messages', function(data) {
+    console.log('onmessages');
+    for(k in data) {
+        messages.set(k, data[k]);
+    }
+    messagelog.render(messages, handlers);
+});
+socket.on('message', function(data) {
+    console.log('onmessage', data);
+    messages.set(data[0], data[1]);
+});
+socket.on('codes', function(data) {
+    console.log('codereceived', data);
+    for(k in data) {
+        handlers.set(k, data[k]);
+        handlers.validate(k);
+    }
+    messagelog.render(messages, handlers);
+});
+socket.on('code', function(data) {
+    console.log('oncode', data);
+    handlers.set(data[0], data[1]);
+});
+socket.on('rename', function(data) {
+    console.log('onrename', data);
+    handlers.rename(data[0], data[1]);
+});
+
+var $ce = document.getElementById('codeeditor');
+$ce.insertBefore(tabs.$el, document.getElementById('code'));
+
+var $ml = document.getElementById('messages');
+$ml.appendChild(messagelog.$el);
+
+$ml.appendChild(testmsg.$el);
+
+var $ed = document.getElementById('code');
+$ed.appendChild(editor.$el);
+
+tabs.trigger("new");
+tabs.select('untitled');
+
+//document.body.appendChild(newCode());
+
+    </script>
+  </body>
+</html>

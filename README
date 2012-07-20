@@ -1,9 +1,6 @@
-SMS-based generative music.
+SMS-based generative music controlled by javascript
 
-We implement a NodeJS-based server with three modes:
-1. /gate - SMS gateway
-2. /poll - returns map {phone#: msg}
-3. /change - long-polling API returning map whenever there is a change
+% node smssage.node.js
 
-Additionally, a (trivial) synthesizer that subscribes to and sonifies
-changes is implemented, audio.numm.py.
+will create a gateway (eg. for SMSSync Android App)
+and a webservice for Audiolet-based synthesis.
